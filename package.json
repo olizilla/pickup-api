@@ -26,5 +26,8 @@
   },
   "workspaces": [
     "backend"
-  ]
+  ],
+  "dependencies": {
+    "aws-cdk-lib": "2.24.0"
+  }
 }
