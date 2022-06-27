@@ -15,8 +15,9 @@ function getUserId(accessToken: string) {
 export async function getPins (c: OAContext, event: APIGatewayProxyEventV2, context: AWSContext) {
   const query = c.request.query as PinQuery
   const userid = getUserId(c.security.accessToken)
+  console.log(query.status)
   try {
-    const body = db.getPins(userid, query)
+    const body = await db.getPins(userid, query)
     return { statusCode: 200, body }
   } catch (error) {
     console.log(error)
