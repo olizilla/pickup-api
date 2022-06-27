@@ -1,10 +1,11 @@
 import { nanoid } from 'nanoid'
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb"
 import { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, QueryCommandInput, UpdateCommand } from "@aws-sdk/lib-dynamodb"
-import { PinResults, PinStatus, Pin, PinQuery } from './schema'
+import { PinResults, PinStatus, Pin, PinQuery, Status } from './schema'
 
 // used to filter props when querying dynamodb
 export const PinStatusAttrs = ['requestid', 'status', 'created', 'pin', 'delegates', 'info']
+export const PinStatusVals: Status[] = ["queued", "pinning", "pinned", "failed"]
 
 type DynamoDBConfig = {
   table: string
@@ -23,90 +24,105 @@ export default class DynamoDBPinningService implements DynamoDBConfig {
   /**
    * Insert a new PinStatus for userid
    */
-  async addPin (userid: string, pin: Pin) {
-    return addPin(this, userid, pin)
+  async addPin (userid: string, pin: Pin): Promise<PinStatus> {
+    const status: PinStatus = {
+      requestid: `${Date.now()}-${nanoid(13)}`,
+      status: 'queued',
+      created: new Date().toISOString(),
+      pin,
+      delegates: [],
+      info: {}
+    }
+    await this.client.send(new PutCommand({ 
+      TableName: this.table, 
+      Item: {
+        ...status,
+        userid
+      } 
+    }))
+    return status
   }
   
   /**
    * Find PinStatus objects for userid that match query. Returns pins with status: `pinned` by default
    */
-  async getPins (userid: string, query: PinQuery) {
-    return getPins(this, userid, query)
+  async getPins (userid: string, query: PinQuery): Promise<PinResults> {
+    const status = Array.isArray(query.status) ? query.status : Array.of(query.status || 'pinned')  
+    const dbQuery: QueryCommandInput = { 
+      TableName: this.table,
+      // gotta sidestep dynamo reserved words!?
+      ExpressionAttributeNames: {
+        '#status': 'status'
+      },
+      ExpressionAttributeValues: { 
+        ":u": userid,
+        ...toInFilter(status).Values
+      },
+      KeyConditionExpression: "userid = :u",
+      FilterExpression: `#status IN (${toInFilter(status).Expresssion})`,
+      ProjectionExpression: PinStatusAttrs.map(x => x === 'status' ? '#status' : x).join(', '),
+      ScanIndexForward: false, // most recent pins first plz
+      Limit: Number(query.limit) || 10
+    }
+    const res = await this.client.send(new QueryCommand(dbQuery))
+    const body: PinResults = { 
+      count: res.Count || 0, 
+      results: res.Items as PinStatus[]
+    }
+    return body
   }
 
-  async getPinByRequestId (userid: string, requestid: string) {
-    return getPinByRequestId(this, userid, requestid)
+  /**
+   * 
+   */
+  async getPinByRequestId (userid: string, requestid: string): Promise<PinStatus> {
+    const res = await this.client.send(new GetCommand({ 
+      TableName: this.table, 
+      Key: { userid, requestid },
+      AttributesToGet: PinStatusAttrs
+    }))
+    return res.Item as PinStatus
   }
 
-  async replacePinByRequestId (userid: string, requestid: string, pin: Pin) {
-    return replacePinByRequestId(this, userid, requestid, pin)
+  /**
+   * Replace an existing pin object. Intended to be a shortcut for executing 
+   * remove and add operations in one step to avoid unnecessary garbage 
+   * collection of blocks present in both recursive pins... but we're gonna do
+   * it the hard way, as we're all CARs in S3, not blocks in a shared blockstore.
+   */
+  async replacePinByRequestId (userid: string, requestid: string, pin: Pin): Promise<PinStatus>  {
+    throw new Error('Not Implemented')
   }
 
-  async deletePinByRequestId (userid: string, requestid: string) {
-    return deletePinByRequestId(this, userid, requestid)
+  /**
+   * Remove a pin object
+   */
+  async deletePinByRequestId (userid: string, requestid: string): Promise<void> {
+    throw new Error('Not Implemented')
   }
-}
 
-export async function addPin ({ client, table }: DynamoDBConfig, userid: string, pin: Pin): Promise<PinStatus> {
-  const status: PinStatus = {
-    requestid: `${Date.now()}-${nanoid(13)}`,
-    status: 'queued',
-    created: new Date().toISOString(),
-    pin,
-    delegates: [],
-    info: {}
+  /**
+   * Update the state for a given Pin
+   */
+  async updatePinStatusByRequestId(userid: string, requestid: string, status: Status): Promise<PinStatus> {
+    if (!PinStatusVals.includes(status)) {
+      throw new Error(`Cannot update pin status to ${status}. Must be one of ${PinStatusVals.join(', ')}`)
+    }
+    const res = await this.client.send(new UpdateCommand({ 
+      TableName: this.table, 
+      Key: { userid, requestid },
+      ExpressionAttributeNames: {
+        '#status': 'status'
+      },
+      ExpressionAttributeValues: {
+        ':s': status
+      },
+      UpdateExpression: 'set #status = :s',
+      ReturnValues: "ALL_NEW"
+    }))
+    // @ts-ignore ReturnValues on query mean res.Item exists.
+    return res.Item as PinStatus
   }
-  await client.send(new PutCommand({ 
-    TableName: table, 
-    Item: {
-      ...status,
-      userid
-    } 
-  }))
-  return status
-}
-
-export async function getPins ({ client, table }: DynamoDBConfig, userid: string, query: PinQuery): Promise<PinResults> {
-  const status = Array.isArray(query.status) ? query.status : Array.of(query.status || 'pinned')  
-  const dbQuery: QueryCommandInput = { 
-    TableName: table,
-    // gotta sidestep dynamo reserved words!?
-    ExpressionAttributeNames: {
-      '#status': 'status'
-    },
-    ExpressionAttributeValues: { 
-      ":u": userid,
-      ...toInFilter(status).Values
-    },
-    KeyConditionExpression: "userid = :u",
-    FilterExpression: `#status IN (${toInFilter(status).Expresssion})`,
-    ProjectionExpression: PinStatusAttrs.map(x => x === 'status' ? '#status' : x).join(', '),
-    ScanIndexForward: false, // most recent pins first plz
-    Limit: Number(query.limit) || 10
-  }
-  const res = await client.send(new QueryCommand(dbQuery))
-  const body: PinResults = { 
-    count: res.Count || 0, 
-    results: res.Items as PinStatus[]
-  }
-  return body
-}
-
-export async function getPinByRequestId ({ client, table }: DynamoDBConfig, userid: string, requestid: string): Promise<PinStatus> {
-  const res = await client.send(new GetCommand({ 
-    TableName: table, 
-    Key: { userid, requestid },
-    AttributesToGet: PinStatusAttrs
-  }))
-  return res.Item as PinStatus
-}
-
-export async function replacePinByRequestId ({ client, table }: DynamoDBConfig, userid: string, requestId: string, pin: Pin): Promise<PinStatus> {
-  throw new Error('Not Implemented')
-}
-
-export async function deletePinByRequestId ({ client, table }: DynamoDBConfig, userid: string, requestId: string): Promise<void> {
-  throw new Error('Not Implemented')
 }
 
 // gross. i have no idea how they expect you to write an IN query with this shit.

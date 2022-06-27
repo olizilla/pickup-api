@@ -2,7 +2,7 @@ import { nanoid } from 'nanoid'
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { DynamoDBClient, CreateTableCommand } from '@aws-sdk/client-dynamodb'
 import { GenericContainer as Container, StartedTestContainer } from 'testcontainers'
-import DynamoDBPinningService, { PinStatusAttrs } from '../db'
+import DynamoDBPinningService, { PinStatusAttrs, PinStatusVals } from '../db'
 
 describe('DynamoDBPinningService', () => {
   let container: StartedTestContainer
@@ -90,5 +90,39 @@ describe('DynamoDBPinningService', () => {
       }]
     })
     expect(res.results[0]).not.toHaveProperty('userid')
+  })
+
+  it('should get pins latest first', async () => {
+    const userid = nanoid()
+    await db.addPin(userid, { cid: '#1' })
+    await db.addPin(userid, { cid: '#2' })
+    await db.addPin(userid, { cid: '#3' })
+
+    // should return pins by status
+    const res = await db.getPins(userid, { status: ['queued'] })
+    expect(res.count).toBe(3)
+    expect(res.results[0].pin.cid).toBe('#3')
+    expect(res.results[1].pin.cid).toBe('#2')
+    expect(res.results[2].pin.cid).toBe('#1')
+  })
+
+  it('should get pins by status', async () => {
+    const userid = nanoid()
+    for (const status of PinStatusVals) {
+      const res = await db.addPin(userid, { cid: `test-${status}` })
+      await db.updatePinStatusByRequestId(userid, res.requestid, status)
+    }
+
+    // only get pins for status
+    for (const status of PinStatusVals) {
+      const res = await db.getPins(userid, { status: [status] })
+      expect(res.count).toBe(1)
+      expect(res.results[0].pin.cid).toBe(`test-${status}`)
+      expect(res.results[0].status).toBe(status)
+    }
+
+    // sending multiple statuses means a AND b.
+    const res = await db.getPins(userid, { status: PinStatusVals })
+    expect(res.count).toBe(4)
   })
 })

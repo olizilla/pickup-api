@@ -1,6 +1,6 @@
 import { StackContext, Api, Table, Topic } from '@serverless-stack/resources'
 
-export function PinningServiceStack ({ stack }: StackContext) {
+export function PinningServiceStack ({ stack }: StackContext): void {
   const topic = new Topic(stack, 'Pin')
 
   const table = new Table(stack, 'PinStatusv2', {
@@ -21,7 +21,7 @@ export function PinningServiceStack ({ stack }: StackContext) {
         permissions: [table, topic], // Allow the API to access the table and topic
         environment: {
           TABLE_NAME: table.tableName,
-          TOPIC_ARN: topic.topicArn,
+          TOPIC_ARN: topic.topicArn
         }
       }
     },
