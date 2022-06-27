@@ -15,6 +15,7 @@ describe('DynamoDBPinningService', () => {
 
     const table = 'TEST'
     db = new DynamoDBPinningService(table, new DynamoDBClient({
+      region: 'us-east-1',
       endpoint: `http://${container.getHost()}:${container.getMappedPort(8000)}`
     }))
 
