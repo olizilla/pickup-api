@@ -4,7 +4,7 @@ import { APIGatewayProxyEventV2, APIGatewayProxyHandlerV2, Context as AWSContext
 import { Pin, PinQuery } from '../schema'
 import DynamoDBPinningService from '../db'
 
-const db = new DynamoDBPinningService(process.env.TABLE_NAME)
+const db = new DynamoDBPinningService({ table: process.env.TABLE_NAME })
 
 function getUserId(accessToken: string) {
   // TODO: map access token to user id

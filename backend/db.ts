@@ -7,16 +7,11 @@ import { PinResults, PinStatus, Pin, PinQuery, Status } from './schema'
 export const PinStatusAttrs = ['requestid', 'status', 'created', 'pin', 'delegates', 'info']
 export const PinStatusVals: Status[] = ["queued", "pinning", "pinned", "failed"]
 
-type DynamoDBConfig = {
-  table: string
-  client: DynamoDBDocumentClient
-}
-
-export default class DynamoDBPinningService implements DynamoDBConfig {
+export default class DynamoDBPinningService {
   table: string
   client: DynamoDBDocumentClient
 
-  constructor (table = 'PinStatus', client = new DynamoDBClient({})) {
+  constructor ({table = 'PinStatus', client = new DynamoDBClient({})} = {}) {
     this.table = table
     this.client = DynamoDBDocumentClient.from(client)
   }

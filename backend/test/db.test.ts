@@ -14,9 +14,9 @@ describe('DynamoDBPinningService', () => {
       .start()
 
     const table = 'TEST'
-    db = new DynamoDBPinningService(table, new DynamoDBClient({
+    db = new DynamoDBPinningService({table, client: new DynamoDBClient({
       endpoint: `http://${container.getHost()}:${container.getMappedPort(8000)}`
-    }))
+    })})
 
     await db.client.send(new CreateTableCommand({ 
       TableName: table,
