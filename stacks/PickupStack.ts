@@ -24,7 +24,8 @@ export function PickupStack ({ stack }: StackContext): void {
     // cpu: 4096,
     // memoryLimitMiB: 8192,
     environment: {
-      SQS_QUEUE_URL: pinService.queue.queueUrl
+      SQS_QUEUE_URL: pinService.queue.queueUrl,
+      GATEWAY_URL: 'http://127.0.0.1:8080'
     },
     queue: pinService.queue.cdk.queue
     // retentionPeriod: Duration.days(1),
