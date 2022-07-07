@@ -1,4 +1,4 @@
-// Forked from https://github.com/aws/aws-cdk/blob/f2b4effc903ab3a36dc925516f3329f236d03a70/packages/%40aws-cdk/aws-ecs-patterns/lib/fargate/queue-processing-fargate-service.ts
+// Forked from https://github.com/aws/aws-cdk/blob/f2b  4effc903ab3a36dc925516f3329f236d03a70/packages/%40aws-cdk/aws-ecs-patterns/lib/fargate/queue-processing-fargate-service.ts
 // Adds `ephemeralStorageGiB` property to the Service, passed thru to FargateTaskDefinition
 // Official support is stuck in a stalled PR here https://github.com/aws/aws-cdk/pull/18106
 import * as ec2 from 'aws-cdk-lib/aws-ec2'
@@ -168,7 +168,7 @@ export class QueueProcessingFargateService extends QueueProcessingServiceBase {
       vpcSubnets: props.taskSubnets,
       assignPublicIp: props.assignPublicIp,
       circuitBreaker: props.circuitBreaker,
-      capacityProviderStrategies: props.capacityProviderStrategies,
+      capacityProviderStrategies: props.capacityProviderStrategies
       // enableExecuteCommand: props.enableExecuteCommand
     })
 
